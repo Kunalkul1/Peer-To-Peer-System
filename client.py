@@ -1,24 +1,26 @@
 from socket import *
 import time
-import threading
-PORT = 7734
+from threading import Thread
+BUFFERSIZE = 1024000
 
 class clientSocket:
 	def __init__(self, port):
-		threading.Thread.__init__(self)
+		Thread.__init__(self)
 		self.port = port
 		self.host = gethostname()
+
+	def run(self):
+		self.create_socket()
+		self.start_connections('localhost',self.port)
+		self.show_main_menu()
 
 	#Function to create client socket
 	def create_socket(self):
 		self.sock = socket(AF_INET,SOCK_STREAM)
 
-
 	#Function to connect
 	def start_connections(self,serverName,port):
-
 		self.sock.connect((serverName,port))
-
 
 	def send(self,str):
 		#print str
@@ -36,7 +38,7 @@ class clientSocket:
 	def close(self):
 		self.sock.close()
 
-	def main_menu(self):
+	def show_main_menu(self):
 		while(1):
 			choice = int(input("Choose an option: \n 1. ADD RFC \n 2. LOOKUP RFC \n 3. LIST RFCs \n 4. DOWNLOAD RFC \n 5. Exit \n"))
 			if choice == 1:
@@ -59,6 +61,12 @@ class clientSocket:
 		RFC_title = raw_input("Enter RFC title")
 		if RFC_filename in os.listdir("."):
 			peer2server_message = self.create_peer2server_message("ADD", self.host, self.port, RFC_number, RFC_title)
+			self.sock.send(peer2server_message)
+			payload = self.sock.recv(BUFFERSIZE)
+			print payload
+
+		else:
+			print("RFC is not present in current directory. \n")
 
 	def create_peer2server_message(self, request_type, host, port, RFC_number, RFC_title=""):
 		message = ""
@@ -74,15 +82,9 @@ class clientSocket:
 		return message
 
 def main():
-	sobj = clientSocket()
-	sobj.create_socket()
-	sobj.start_connections('localhost',PORT)
-	"""sent = raw_input("Enter: ")
-				sobj.send(sent)
-				mod = sobj.recv()
-				print "From serevr", mod"""
-	time.sleep(5)
-	sobj.close()
+	upload_port = input("Enter the upload port number of this client:\n")
+	sobj = clientSocket(upload_port)
+	sobj.start()
 
 if __name__ == "__main__":
 	main()
