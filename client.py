@@ -60,7 +60,7 @@ class clientSocket(threading.Thread):
 		RFC_number = int(input("Enter the RFC number \n"))
 		RFC_filename = "RFC " + str(RFC_number) + ".txt"
 		RFC_title = raw_input("Enter RFC title \n")
-		if RFC_filename in os.listdir("."):
+		if RFC_filename in os.listdir("./RFC"):
 			peer2server_message = self.create_peer2server_message("ADD", self.host, self.port, RFC_number, RFC_title)
 			self.sock.send(peer2server_message)
 			payload = self.sock.recv(BUFFERSIZE)
