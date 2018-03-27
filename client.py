@@ -68,7 +68,7 @@ class clientSocket(threading.Thread):
         else:
             print("RFC is not present in RFC directory. \n")
 
-    def create_peer2server_message(self, request_type, host, port, RFC_number, RFC_title=""):
+    def create_peer2server_message(self, request_type, host, port, RFC_number, RFC_title = ""):
         message = ""
         message = message + request_type + " "
         if RFC_number != 0:
@@ -79,7 +79,7 @@ class clientSocket(threading.Thread):
 
         if RFC_title:
             message = message + "\r\n" + "Title: " + RFC_title
-        print "The message looks like follows:\n" + message
+        print "The message that was sent:\n" + message
         return message
 
     def lookup_RFC(self):
@@ -87,9 +87,15 @@ class clientSocket(threading.Thread):
         RFC_filename = raw_input("Enter the RFC title too\n")
         message = self.create_peer2server_message("LOOKUP", self.host, self.port, RFC_number, RFC_filename)
         self.sock.send(message)
-        print "Message sent!"
         payload = self.sock.recv(BUFFERSIZE)
-        print "Payload is: " + payload
+        print "Peers having the specified RFC:\n" + payload
+
+    def list_RFC(self):
+        message = self.create_peer2server_message("LIST", self.host, self.port, 0)
+        self.sock.send(message)
+        payload = self.sock.recv(BUFFERSIZE)
+        print "List of all RFCS:\n"
+        print payload
 
     def exit(self):
         print "Exiting!\n"

@@ -31,16 +31,6 @@ class serverSocket(threading.Thread):
         except:
             print "Socket creation failed"
 
-    #Function to accept connections
-    def accept_connections(self):
-        try:
-            (self.csock, self.caddr) = self.sock.accept()
-
-        except:
-            print "accept_connection failed!"
-            self.closeServerSocketFromChild()
-            os.system('kill %d' % os.getpid())
-
     def process_request(self, request):
         self.validate_request(request)
         if self.status_code == 200:
@@ -115,18 +105,15 @@ class serverSocket(threading.Thread):
                 response = response + "P2P-CI/1.0 " + str(self.status_code) + " " + self.phrase
                 for(rfc, title, host) in lookup_results:
                     response = response + "\r\n" + "RFC " + rfc + " " + title + " " + host
-                print response
+                print "List of hosts having the specified RFC:\n" + response
+
+        elif (split_request[0].startswith("LIST")):
+            response = response + "P2P-CI/1.0 " + str(self.status_code) + " " + self.phrase
+            list_of_all_rfcs = list_of_rfcs
+            for (rfc, title, host) in list_of_all_rfcs:
+                response = response + "\r\n" + "RFC " + rfc + " " + title + " " + host
 
         self.sockfd.send(bytes(response))
-
-    #Function to close the Client connection from Parent process
-    def closeClientSocketFromParent(self):
-        self.csock.close()
-
-    #Function to close the Server connection from the child process
-    def closeServerSocketFromChild(self):
-        self.sock.close()
-
 
 #This class has all the functions performed by the Slave socket
 class Child:
