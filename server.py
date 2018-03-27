@@ -1,27 +1,38 @@
-from socket import *
+import socket
 import os
-import time
-import signal
+import threading
 PORT = 7734
+BUFFERSIZE = 1024
+peerlist = []
+list_of_rfcs = []
 
-#This class contains functions for the Master socket
-class serverSocket:
+class serverSocket(threading.Thread):
+	def __init__(self, peerinfo):
+		threading.Thread.__init__(self)
+		self.sockfd = peerinfo[0]
+		self.address = peerinfo[1]
+
+	def run(self):
+		while True:
+			payload = self.sockfd.recv(BUFFERSIZE)
+			if payload.startswith("EXIT"):
+				break
+			if not payload:
+				break
+			self.process_request(payload)
 
 	#Function to create socket
 	def create_socket(self):
 		try:
-			self.sock = socket(AF_INET,SOCK_STREAM)
-			self.sock.setsockopt(SOL_SOCKET,SO_REUSEADDR,1)
+			self.sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+			self.sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
 			self.sock.bind(('',PORT))
-
 			self.sock.listen(10)
 		except:
-			print "creation failed"
-
+			print "Socket creation failed"
 
 	#Function to accept connections
 	def accept_connections(self):
-
 		try:
 			(self.csock, self.caddr) = self.sock.accept()
 
@@ -30,16 +41,65 @@ class serverSocket:
 			self.closeServerSocketFromChild()
 			os.system('kill %d' % os.getpid())
 
-	"""
-	#Function to send from server socket
-	def send(self,str):
-		#print "sending",str
-		self.csock.send(str)
+	def process_request(self, request):
+		self.validate_request(request)
+		if self.status_code == 200:
+			split_request = request.split("\r\n")
+			if not (split_request[1].lstrip('Host: '), split_request[2].lstrip('Port: ')) in peerlist:
+				peerlist.append((split_request[1].lstrip('Host: '), split_request[2].lstrip('Port: ')))
+				print "Appended to Peer List!\n"
+			if request.startswith('ADD'):
+				self.add_rfc(request)
+			self.send_response(request)
+		else:
+			response = "P2P-CI/1.0 " + str(self.status_code) + " " + self.phrase
+			self.sockfd.send(response)
+		print "Peer list: " + str(peerlist)
 
-	#Function to recv from the client socket
-	def recv(self):
-		return self.csock.recv(1024)
-	"""
+	def validate_request(self, request):
+		self.status_code = 0
+		self.phrase = ""
+		split_request = request.split("\r\n")
+		if "P2P-CI/1.0" not in split_request[0]:
+			self.status_code = 505
+			self.phrase = "P2P-CI Version Not Supported"
+
+		elif not ((split_request[0].startswith("ADD") or split_request[0].startswith("LOOKUP") or split_request[0].startswith("LIST")) and (split_request[1].startswith("Host: ") and split_request[2].startswith("Port: "))):
+			self.status_code = 400
+			self.phrase = "Bad Request"
+
+		elif not split_request[0].startswith("LIST"):
+			if not split_request[len(split_request) - 1].startswith("Title: "):
+				self.status_code = 400
+				self.phrase = "Bad Request"
+			else:
+				self.status_code = 200
+				self.phrase = "OK"
+
+		else:
+			self.status_code = 200
+			self.phrase = "OK"
+
+	def add_rfc(self, request):
+		split_request = request.split('\r\n')
+		if (split_request[0].lstrip("ADD RFC ").replace(' P2P-CI/1.0', ''), split_request[len(split_request) - 1].lstrip("Title: "),
+			split_request[1].lstrip("Host: ")) not in list_of_rfcs:
+			list_of_rfcs.append((split_request[0].lstrip("ADD RFC ").replace(' P2P-CI/1.0', ''),
+								 split_request[len(split_request) - 1].lstrip("Title: "), split_request[1].lstrip("Host: "),
+								 split_request[2].lstrip("Port: ")))
+			print "List of RFCs has been updated!\n"
+		print "List of RFCs: " + str(list_of_rfcs)
+
+	def send_response(self, request):
+		response = ""
+		split_request = request.split('\r\n')
+		if split_request[0].startswith("ADD"):
+			response = response + "P2P-CI/1.0 " + str(self.status_code) + " " + self.phrase
+			response = response + "\r\n" + split_request[0].lstrip("ADD ").rstrip("P2P-CI/1.0")
+			response = response + split_request[len(split_request) - 1].lstrip("Title: ")
+			response = response + split_request[1].lstrip("Host:") + split_request[2].lstrip("Port:")
+
+		self.sockfd.send(bytes(response))
 
 	#Function to close the Client connection from Parent process
 	def closeClientSocketFromParent(self):
@@ -56,7 +116,6 @@ class Child:
 		self.sock = sock
 		self.addr = addr
 
-
 	def register(self):
 		print "Client registered!"
 
@@ -66,26 +125,17 @@ class Child:
 		print "Connection closed!"
 
 def main():
-	sobj = serverSocket()
-	sobj.create_socket()
-
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	sock.bind(('', PORT))
+	sock.listen(10)
+	print "Server is up and running!\n"
 	while True:
-		sobj.accept_connections()
-		fval = os.fork()
-		if fval == -1:
-			print "Fork failed!"
-			sobj.closeClientSocketFromParent()
-			continue
-
-		if fval == 0:
-			sobj.closeServerSocketFromChild()
-			child = Child(sobj.csock,sobj.caddr)
-			child.register()
-			time.sleep(5)
-			child.close()
-			os.system('kill %d' % os.getpid())
-			
-		sobj.closeClientSocketFromParent()
+		try:
+			server = serverSocket(sock.accept())
+			print "Client registered!\n"
+			server.start()
+		except:
+			print "Error in connecting/sending data to the client\n"
 
 if __name__ == "__main__":
 	main()

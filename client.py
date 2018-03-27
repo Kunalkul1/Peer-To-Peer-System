@@ -1,17 +1,18 @@
 from socket import *
-import time
-from threading import Thread
+import threading
+import os
 BUFFERSIZE = 1024000
 
-class clientSocket:
+class clientSocket(threading.Thread):
 	def __init__(self, port):
-		Thread.__init__(self)
+		threading.Thread.__init__(self)
 		self.port = port
 		self.host = gethostname()
 
 	def run(self):
 		self.create_socket()
-		self.start_connections('localhost',self.port)
+		self.start_connections('localhost',7734)
+		print "hii"
 		self.show_main_menu()
 
 	#Function to create client socket
@@ -39,7 +40,7 @@ class clientSocket:
 		self.sock.close()
 
 	def show_main_menu(self):
-		while(1):
+		while True:
 			choice = int(input("Choose an option: \n 1. ADD RFC \n 2. LOOKUP RFC \n 3. LIST RFCs \n 4. DOWNLOAD RFC \n 5. Exit \n"))
 			if choice == 1:
 				self.add_RFC()
@@ -58,7 +59,7 @@ class clientSocket:
 	def add_RFC(self):
 		RFC_number = int(input("Enter the RFC number \n"))
 		RFC_filename = "RFC " + str(RFC_number) + ".txt"
-		RFC_title = raw_input("Enter RFC title")
+		RFC_title = raw_input("Enter RFC title \n")
 		if RFC_filename in os.listdir("."):
 			peer2server_message = self.create_peer2server_message("ADD", self.host, self.port, RFC_number, RFC_title)
 			self.sock.send(peer2server_message)
@@ -73,6 +74,7 @@ class clientSocket:
 		message = message + request_type + " "
 		if RFC_number != 0:
 			message = message + "RFC " + str(RFC_number) + " "
+		message = message + "P2P-CI/1.0" + "\r\n"
 		message = message + "Host: " + host + "\r\n"
 		message = message + "Port: " + str(port)
 
@@ -80,6 +82,11 @@ class clientSocket:
 			message = message + "\r\n" + "Title: " + RFC_title
 		print message
 		return message
+
+	def exit(self):
+		print "Exiting!\n"
+		self.sock.close()
+		return
 
 def main():
 	upload_port = input("Enter the upload port number of this client:\n")
