@@ -84,8 +84,8 @@ class clientSocket(threading.Thread):
 
     def lookup_RFC(self):
         RFC_number = int(input("Enter the RFC number to be looked up\n"))
-        RFC_filename = raw_input("Enter the RFC title too\n")
-        message = self.create_peer2server_message("LOOKUP", self.host, self.port, RFC_number, RFC_filename)
+        title = raw_input("Enter the RFC title too\n")
+        message = self.create_peer2server_message("LOOKUP", self.host, self.port, RFC_number, title)
         self.sock.send(message)
         payload = self.sock.recv(BUFFERSIZE)
         print "Peers having the specified RFC:\n" + payload
@@ -96,6 +96,27 @@ class clientSocket(threading.Thread):
         payload = self.sock.recv(BUFFERSIZE)
         print "List of all RFCS:\n"
         print payload
+
+    def download_RFC(self):
+        rfc = int(input("Enter RFC number \n"))
+        title = raw_input("Enter RFC Title \n")
+        lookup_message = self.create_peer2server_message("LOOKUP", self.host, self.port, rfc, title)
+        self.sock.send(lookup_message)
+        payload = self.sock.recv(BUFFERSIZE)
+        download_ip, download_port = self.extract_info(payload, rfc, title)
+
+        ###incomplete
+
+    def extract_info(self, payload, rfc, title):
+        info = payload.split("\r\n")
+        if "OK" in info[0]:
+            host_and_port = info[1].lstrip("RFC " + str(rfc) + " " + title)
+            download_host = host_and_port.split(" ")[0]
+            download_port = host_and_port.split(" ")[1]
+            download_ip = gethostbyname(download_host)
+            return download_ip, download_port
+        else:
+            return "", ""
 
     def exit(self):
         print "Exiting!\n"
