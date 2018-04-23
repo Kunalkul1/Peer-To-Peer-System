@@ -15,7 +15,7 @@ class clientSocket(threading.Thread):
     def run(self):
         self.create_socket()
         thread.start_new_thread(self.start_uploader,())
-        self.start_connections('localhost', 7734)
+        self.start_connections('192.168.1.21', 7734)
         self.add_RFC()
         self.show_main_menu()
 

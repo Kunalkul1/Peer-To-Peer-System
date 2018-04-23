@@ -2,13 +2,14 @@ import socket
 import os
 import threading
 import sys
+import copy
 PORT = 7734
 BUFFERSIZE = 1024
-
+peerlist = []
+list_of_rfcs = []
 
 class serverSocket(threading.Thread):
-    peerlist = []
-    list_of_rfcs = []
+   
     def __init__(self, peerinfo):
         threading.Thread.__init__(self)
         self.sockfd = peerinfo[0]
@@ -26,13 +27,32 @@ class serverSocket(threading.Thread):
         name = k[1]
         port = k[2]
         print "exiting", name, port
-        #global self.peerlist
-        #global self.list_of_rfcs
-        self.peerlist = filter(lambda a: a != (name,port), self.peerlist)
+        global peerlist
+        global list_of_rfcs
+        #abcd = filter(lambda a: a != (name,port), peerlist)
+        val = -1
+        for i in range(len(peerlist)):
+            if peerlist[i][0] == name and peerlist[i][1] == port:
+                val = i
+                break
 
-        self.list_of_rfcs = filter(lambda a: not (a[2] == name and a[3] == port) , self.list_of_rfcs)
-        print "self.peerlist:", self.peerlist
-        print "RFC list:", self.list_of_rfcs
+        peerlist.pop(val)
+        arr = []
+        #peerlist = copy.deepcopy(abcd)
+
+        for i in range(len(list_of_rfcs)):
+            if list_of_rfcs[i][2] == name and list_of_rfcs[i][3] == port:
+                arr.append(i)
+
+        for j in range(len(arr)-1,-1,-1):
+            list_of_rfcs.pop(arr[j])
+
+        #xyz = filter(lambda a: not (a[2] == name and a[3] == port) , list_of_rfcs)
+        #list_of_rfcs = copy.deepcopy(xyz)
+        #del xyz
+        #del abcd
+        print "peerlist:", peerlist
+        print "self.RFC list:", list_of_rfcs
 
     def run(self):
         while True:
@@ -45,7 +65,7 @@ class serverSocket(threading.Thread):
             self.process_request(payload)
 
         #incomplete
-        #self.peerlist: remove entry  
+        #peerlist: remove entry  
         #list_of_rfc: remove entry
 
     #Function to create socket
@@ -62,8 +82,8 @@ class serverSocket(threading.Thread):
         self.validate_request(request)
         if self.status_code == 200:
             split_request = request.split("\r\n")
-            if not (split_request[1].lstrip('Host: '), split_request[2].lstrip('Port: ')) in self.peerlist:
-                self.peerlist.append((split_request[1].lstrip('Host: '), split_request[2].lstrip('Port: ')))
+            if not (split_request[1].lstrip('Host: '), split_request[2].lstrip('Port: ')) in peerlist:
+                peerlist.append((split_request[1].lstrip('Host: '), split_request[2].lstrip('Port: ')))
                 print "Appended to Peer List!\n"
             if request.startswith('ADD'):
                 "Adding request!"
@@ -73,7 +93,7 @@ class serverSocket(threading.Thread):
         else:
             response = "P2P-CI/1.0 " + str(self.status_code) + " " + self.phrase + "\r\n"
             self.sockfd.send(response)
-        print "Peer list: " + str(self.peerlist)
+        print "Peer list: " + str(peerlist)
 
     def validate_request(self, request):
         self.status_code = 0
@@ -100,22 +120,28 @@ class serverSocket(threading.Thread):
             self.phrase = "OK"
 
     def add_rfc(self, request):
+        global peerlist
+        global list_of_rfcs
         split_request = request.split('\r\n')
         if (split_request[0].lstrip("ADD RFC ").replace(' P2P-CI/1.0', ''), split_request[len(split_request) - 1].lstrip("Title: "),
-            split_request[1].lstrip("Host: ")) not in self.list_of_rfcs:
-            self.list_of_rfcs.append((split_request[0].lstrip("ADD RFC ").replace(' P2P-CI/1.0', ''),
+            split_request[1].lstrip("Host: ")) not in list_of_rfcs:
+            list_of_rfcs.append((split_request[0].lstrip("ADD RFC ").replace(' P2P-CI/1.0', ''),
                                  split_request[len(split_request) - 1].lstrip("Title: "), split_request[1].lstrip("Host: "), split_request[2].lstrip("Port: ")))
             print "List of RFCs has been updated!\n"
-        print "List of RFCs: " + str(self.list_of_rfcs)
+        print "List of RFCs: " + str(list_of_rfcs)
 
     def lookup_RFC(self, split_request):
+        global peerlist
+        global list_of_rfcs
         rfclist = []
-        for(rfc, title, host,port) in self.list_of_rfcs:
+        for(rfc, title, host,port) in list_of_rfcs:
             if (rfc == split_request[0].lstrip("LOOKUP RFC ").replace(' P2P-CI/1.0', '') and (title == split_request[len(split_request) - 1].lstrip("Title: "))):
                 rfclist.append((rfc, title, host, port))
         return rfclist
 
     def send_response(self, request):
+        global peerlist
+        global list_of_rfcs
         response = ""
         split_request = request.split('\r\n')
         if split_request[0].startswith("ADD"):
@@ -142,7 +168,7 @@ class serverSocket(threading.Thread):
 
         elif (split_request[0].startswith("LIST")):
             response = ""
-            list_of_all_rfcs = self.list_of_rfcs
+            list_of_all_rfcs = list_of_rfcs
             if len(list_of_all_rfcs) == 0:
                 self.status_code = 404
                 self.phrase = "Not Found"
