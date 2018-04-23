@@ -16,7 +16,7 @@ class clientSocket(threading.Thread):
         self.create_socket()
         thread.start_new_thread(self.start_uploader,())
         self.start_connections('localhost', 7734)
-        
+        self.add_RFC()
         self.show_main_menu()
 
     #Function to create client socket
@@ -130,38 +130,37 @@ class clientSocket(threading.Thread):
 
     def show_main_menu(self):
         while True:
-            choice = int(input("Choose an option: \n 1. ADD RFC \n 2. LOOKUP RFC \n 3. LIST RFCs \n 4. DOWNLOAD RFC \n 5. Exit \n"))
+            choice = int(input("Choose an option: \n 1. LOOKUP RFC \n 2. LIST RFCs \n 3. DOWNLOAD RFC \n 4. Exit \n"))
+            #if choice == 1:
+            #    self.add_RFC()
+            #    continue
             if choice == 1:
-                self.add_RFC()
-                continue
-            if choice == 2:
                 self.lookup_RFC()
                 continue
-            if choice == 3:
+            if choice == 2:
                 self.list_RFC()
                 continue
-            if choice == 4:
+            if choice == 3:
                 self.download_RFC()
                 continue
-            if choice == 5:
+            if choice == 4:
                 self.exit()
                 break
             else:
                 print "Invalid option. Please enter again!\n"
 
     def add_RFC(self):
-        RFC_number = int(input("Enter the RFC number \n"))
-        RFC_filename = "RFC " + str(RFC_number) + ".txt"
-        RFC_title = raw_input("Enter RFC title \n")
-        if RFC_filename in os.listdir("./RFC"):
-            peer2server_message = self.create_peer2server_message("ADD", self.host, self.port, RFC_number, RFC_title)
-            self.sock.send(peer2server_message)
-            #payload = self.sock.recv(BUFFERSIZE)
-            self.recv_handle_msg("ADD")
-            #print payload
-
-        else:
-            print("RFC is not present in RFC directory. \n")
+        rfc_files = []
+        for file in os.listdir("./RFC"):
+            if file.startswith("RFC"):
+                rfc_files.append(file)
+        for file in rfc_files:
+            rfc_title = raw_input("Enter Title for RFC " + file.lstrip("RFC ").lstrip() + ":\n")
+            message = self.create_peer2server_message("ADD", self.host, self.port, file.lstrip("RFC ").lstrip().rstrip('.txt'), rfc_title)
+            self.sock.send(bytes(message))
+            payload = self.sock.recv(BUFFERSIZE)
+        
+            print payload + "\n"
 
     def recv_handle_msg(self,typ):
         if typ == "ADD":
@@ -202,12 +201,15 @@ class clientSocket(threading.Thread):
 
             #Can have multiple responses
             msg = ""
-            print "Recving"
+            print "Recving lookup"
             while True:
                 msg = msg + self.sock.recv(BUFFERSIZE)
-
+                print msg
                 if msg.endswith("\r\n\r\n") and len(msg.split('\r\n\r\n')) > 1:
                     break
+                if len(msg.split('\r\n\r\n')) == 1:
+                    if msg.split('\r\n\r\n')[0].split(" ")[1] == 404 or msg.split('\r\n\r\n')[0].split(" ")[1] == 400 or msg.split('\r\n\r\n')[0].split(" ")[1] == 505:
+                        break
 
 
             print len(msg)
@@ -254,14 +256,19 @@ class clientSocket(threading.Thread):
         elif typ == "LIST":
              #Can have multiple responses
             msg = ""
-            print "LISTING"
+            #print "LISTING"
             while True:
                 msg = msg + self.sock.recv(BUFFERSIZE)
 
                 if msg.endswith("\r\n\r\n") and len(msg.split('\r\n\r\n')) > 1:
                     break
 
+                if len(msg.split('\r\n\r\n')) == 1:
+                    if msg.split('\r\n\r\n')[0].split(" ")[1] == 404:
+                        break
 
+
+            print "Recieved Message is: "
             print msg
 
             parts = msg.split('\r\n\r\n')
@@ -287,23 +294,23 @@ class clientSocket(threading.Thread):
                 print "\r\n"
                 return rfc_info
             elif info[1] == "400":
-                print "Bad request error", info[2]
+                print "Bad request error!"
                 return None
 
             elif info[1] == "404":
-                print "Not found error that is ",info[2]
+                print "Not found error!"
                 return None
 
             elif info[1] == "505":
-                print "Version error that is ", info[2]
+                print "Version error"
                 return None
 
             else:
-                print "Invalid error!", info[1]    
+                print "Invalid error!"    
                 return None
 
         else:
-            print "Nowhere so here!"
+            print "Incorrect Type!"
 
 
 
@@ -377,11 +384,23 @@ class clientSocket(threading.Thread):
 
                 content = content + s.recv(BUFFERSIZE)
 
+            s.close()
 
             fil = open("./RFC/RFC "+str(rfc)+".txt","w")
             #print content
             fil.write(content[:file_len])
             fil.close()
+
+
+
+            message = self.create_peer2server_message("ADD", self.host, self.port, str(rfc), title)
+            self.sock.send(bytes(message))
+            payload = self.sock.recv(BUFFERSIZE)
+        
+            print payload + "\n"
+
+        else:
+            print "Error in receiving file!"
 
 
 
@@ -441,7 +460,8 @@ class clientSocket(threading.Thread):
 
     def exit(self):
         print "Exiting!\n"
-        message = 
+        message = "EXIT " + str(self.host) + " " + str(self.port) + "\r\n"
+        self.sock.send(message)
         self.sock.close()
         return
 
